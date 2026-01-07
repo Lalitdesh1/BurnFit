@@ -20,7 +20,15 @@ import {
   ShieldCheck,
   Cloud,
   Leaf,
-  Beef
+  Beef,
+  CheckCircle2,
+  Settings,
+  ShieldAlert,
+  Search,
+  Phone,
+  Mail,
+  History,
+  Database
 } from 'lucide-react';
 import { UserProfile, DailyStats, ActivityEntry, ChatMessage, DietaryPreference } from './types';
 import { getAIResponse, getFixMyDaySuggestion, analyzeFoodImage, estimateCaloriesFromText } from './geminiService';
@@ -28,6 +36,7 @@ import { getAIResponse, getFixMyDaySuggestion, analyzeFoodImage, estimateCalorie
 const STORAGE_KEY_PROFILE = 'burnfit_profile';
 const STORAGE_KEY_ENTRIES = 'burnfit_entries';
 const STORAGE_KEY_AUTH = 'burnfit_auth';
+const STORAGE_KEY_ADMIN = 'burnfit_is_admin';
 
 const MICRO_WORKOUTS = [
   { id: 1, title: '5-minute brisk walk', icon: '🚶' },
@@ -39,6 +48,7 @@ const MICRO_WORKOUTS = [
 export default function App() {
   const [isAuthSession, setIsAuthSession] = useState<boolean | null>(null);
   const [isGoogleAccount, setIsGoogleAccount] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'coach' | 'profile'>('dashboard');
@@ -48,9 +58,15 @@ export default function App() {
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [isScanningFood, setIsScanningFood] = useState(false);
   const [isEstimatingText, setIsEstimatingText] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showAdminDetails, setShowAdminDetails] = useState(false);
   
   const [intakeCalories, setIntakeCalories] = useState<string>('');
   const [intakeDesc, setIntakeDesc] = useState<string>('');
+  const [confirmedName, setConfirmedName] = useState<string>('');
+
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   const [coachMessages, setCoachMessages] = useState<ChatMessage[]>([
     { role: 'model', text: 'Hey there! I’m your BurnFit Coach. I’ve connected to your Google Health Memories. Ready to smash some goals today?' }
@@ -60,9 +76,12 @@ export default function App() {
 
   useEffect(() => {
     const authStatus = localStorage.getItem(STORAGE_KEY_AUTH);
+    const adminStatus = localStorage.getItem(STORAGE_KEY_ADMIN);
+    
     if (authStatus) {
       setIsAuthSession(true);
       setIsGoogleAccount(authStatus === 'google');
+      setIsAdmin(adminStatus === 'true');
     } else {
       setIsAuthSession(false);
     }
@@ -82,10 +101,28 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY_ENTRIES, JSON.stringify(entries));
   }, [entries]);
 
-  const handleLogin = (type: 'google' | 'guest') => {
-    localStorage.setItem(STORAGE_KEY_AUTH, type);
-    setIsGoogleAccount(type === 'google');
+  const handleLogin = (type: 'google' | 'guest' | 'admin') => {
+    localStorage.setItem(STORAGE_KEY_AUTH, type === 'admin' ? 'google' : type);
+    if (type === 'admin') {
+      setIsAdmin(true);
+      localStorage.setItem(STORAGE_KEY_ADMIN, 'true');
+      setIsGoogleAccount(true);
+    } else {
+      setIsAdmin(false);
+      localStorage.setItem(STORAGE_KEY_ADMIN, 'false');
+      setIsGoogleAccount(type === 'google');
+    }
     setIsAuthSession(true);
+  };
+
+  const handleAdminLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminUsername === 'lalit' && adminPassword === 'lalit@123') {
+      handleLogin('admin');
+      setShowAdminLogin(false);
+    } else {
+      alert("Invalid admin credentials");
+    }
   };
 
   const handleLogout = () => {
@@ -93,6 +130,7 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEY_AUTH);
       localStorage.removeItem(STORAGE_KEY_PROFILE);
       localStorage.removeItem(STORAGE_KEY_ENTRIES);
+      localStorage.removeItem(STORAGE_KEY_ADMIN);
       window.location.reload();
     }
   };
@@ -121,6 +159,8 @@ export default function App() {
     const weight = parseInt(formData.get('weight') as string);
     const goal = formData.get('goal') as 'lose' | 'maintain';
     const dietaryPreference = formData.get('dietaryPreference') as DietaryPreference;
+    const email = formData.get('email') as string;
+    const phoneNumber = formData.get('phoneNumber') as string;
     
     const target = calculateTarget(age, height, weight, goal);
     const newProfile: UserProfile = { 
@@ -130,11 +170,13 @@ export default function App() {
       goal, 
       dietaryPreference, 
       dailyTarget: target, 
-      setupComplete: true 
+      setupComplete: true,
+      email,
+      phoneNumber,
+      searchHistory: []
     };
     setProfile(newProfile);
 
-    // Initial message adjustment based on preference
     setCoachMessages([
       { role: 'model', text: `Profile Synced! I've noted your preference for a ${dietaryPreference} diet. Let's start your Google Health Journey today!` }
     ]);
@@ -143,24 +185,20 @@ export default function App() {
   const handleSendMessage = async (text: string) => {
     if (!profile) return;
     
+    // Add to search history (Admin visibility)
+    const updatedProfile = { 
+      ...profile, 
+      searchHistory: [text, ...profile.searchHistory].slice(0, 50) 
+    };
+    setProfile(updatedProfile);
+
     const userMessage: ChatMessage = { role: 'user', text };
     setCoachMessages(prev => [...prev, userMessage]);
-
     try {
-      const response = await getAIResponse(
-        profile,
-        getTodayStats(),
-        coachMessages,
-        text
-      );
-      
+      const response = await getAIResponse(updatedProfile, getTodayStats(), coachMessages, text);
       setCoachMessages(prev => [...prev, { role: 'model', text: response }]);
     } catch (error) {
-      console.error("Coach response error:", error);
-      setCoachMessages(prev => [...prev, { 
-        role: 'model', 
-        text: "I'm having a bit of trouble connecting to your memories right now. Let's try again in a second!" 
-      }]);
+      setCoachMessages(prev => [...prev, { role: 'model', text: "I'm having a bit of trouble connecting right now. Try again soon!" }]);
     }
   };
 
@@ -177,6 +215,7 @@ export default function App() {
       setShowIntakeModal(false);
       setIntakeCalories('');
       setIntakeDesc('');
+      setConfirmedName('');
     }
     if (type === 'exercise') setShowActivityModal(false);
   };
@@ -185,15 +224,16 @@ export default function App() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !profile) return;
     setIsScanningFood(true);
     const reader = new FileReader();
     reader.onload = async () => {
       const base64Data = (reader.result as string).split(',')[1];
-      const result = await analyzeFoodImage(base64Data, file.type);
+      const result = await analyzeFoodImage(base64Data, file.type, profile.dietaryPreference);
       if (result) {
         setIntakeCalories(result.estimatedCalories.toString());
         setIntakeDesc(result.foodName);
+        setConfirmedName(result.foodName);
       }
       setIsScanningFood(false);
     };
@@ -201,12 +241,13 @@ export default function App() {
   };
 
   const handleEstimateCalories = async () => {
-    if (!intakeDesc.trim()) return;
+    if (!intakeDesc.trim() || !profile) return;
     setIsEstimatingText(true);
     try {
-      const result = await estimateCaloriesFromText(intakeDesc);
+      const result = await estimateCaloriesFromText(intakeDesc, profile.dietaryPreference);
       if (result && result.estimatedCalories > 0) {
         setIntakeCalories(result.estimatedCalories.toString());
+        setConfirmedName(result.confirmedFoodName);
       }
     } finally {
       setIsEstimatingText(false);
@@ -216,52 +257,112 @@ export default function App() {
   if (isAuthSession === false) {
     return (
       <div className="min-h-screen bg-white p-8 flex flex-col items-center justify-center text-center">
-        <div className="mb-12">
-          <div className="w-24 h-24 bg-orange-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-orange-100/50">
-            <Flame className="w-12 h-12 text-orange-600" />
+        {showAdminLogin ? (
+          <div className="w-full max-w-sm animate-in fade-in zoom-in duration-300">
+             <div className="mb-8">
+              <ShieldAlert className="w-16 h-16 text-slate-800 mx-auto mb-4" />
+              <h2 className="text-2xl font-black text-slate-900">Admin Login</h2>
+              <p className="text-slate-500">Secure access for superusers only.</p>
+            </div>
+            <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
+              <input 
+                value={adminUsername}
+                onChange={(e) => setAdminUsername(e.target.value)}
+                type="text" 
+                placeholder="ID (e.g. lalit)" 
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-slate-800 transition-all font-bold"
+              />
+              <input 
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                type="password" 
+                placeholder="Password" 
+                className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-slate-800 transition-all font-bold"
+              />
+              <button 
+                type="submit" 
+                className="w-full py-5 bg-slate-900 text-white font-black rounded-3xl shadow-xl shadow-slate-200 active:scale-[0.98] transition-transform"
+              >
+                Access Dashboard
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setShowAdminLogin(false)}
+                className="w-full py-4 text-slate-400 font-bold uppercase text-xs tracking-widest"
+              >
+                Go Back
+              </button>
+            </form>
           </div>
-          <h1 className="text-4xl font-black text-gray-900 mb-4 tracking-tight">BurnFit</h1>
-          <p className="text-gray-500 max-w-xs mx-auto text-lg leading-relaxed">
-            Your simple AI companion for a healthier lifestyle.
-          </p>
-        </div>
+        ) : (
+          <>
+            <div className="mb-12">
+              <div className="w-24 h-24 bg-orange-100 rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-orange-100/50">
+                <Flame className="w-12 h-12 text-orange-600" />
+              </div>
+              <h1 className="text-4xl font-black text-gray-900 mb-4 tracking-tight">BurnFit</h1>
+              <p className="text-gray-500 max-w-xs mx-auto text-lg leading-relaxed">
+                Your simple AI companion for a healthier lifestyle.
+              </p>
+            </div>
 
-        <div className="w-full max-w-sm space-y-4">
-          <button 
-            onClick={() => handleLogin('google')}
-            className="w-full flex items-center justify-center gap-3 py-5 bg-white border-2 border-gray-100 rounded-3xl font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
-          >
-            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-            Sign in with Google
-          </button>
-          
-          <button 
-            onClick={() => handleLogin('guest')}
-            className="w-full py-5 bg-orange-600 text-white font-bold rounded-3xl hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
-          >
-            Continue as Guest
-          </button>
-        </div>
-        
-        <p className="mt-8 text-xs text-gray-400 font-medium">
-          No sign up required. Data stored in your Google Cloud or Local Memory.
-        </p>
+            <div className="w-full max-w-sm space-y-4">
+              <button 
+                onClick={() => handleLogin('google')}
+                className="w-full flex items-center justify-center gap-3 py-5 bg-white border-2 border-gray-100 rounded-3xl font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+              >
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                Sign in with Google
+              </button>
+              
+              <button 
+                onClick={() => handleLogin('guest')}
+                className="w-full py-5 bg-orange-600 text-white font-bold rounded-3xl hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
+              >
+                Continue as Guest
+              </button>
+
+              <button 
+                onClick={() => setShowAdminLogin(true)}
+                className="w-full py-4 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-gray-900 transition-colors"
+              >
+                Admin Access
+              </button>
+            </div>
+            
+            <p className="mt-8 text-xs text-gray-400 font-medium">
+              No sign up required. Data stored in your Google Cloud or Local Memory.
+            </p>
+          </>
+        )}
       </div>
     );
   }
 
   if (!profile || !profile.setupComplete) {
     return (
-      <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center">
-        <div className="w-full max-w-md">
+      <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center overflow-y-auto">
+        <div className="w-full max-w-md py-12">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Your Profile</h1>
             <p className="text-gray-500">
-              {isGoogleAccount ? "Welcome! We're fetching your data from Google." : "Let's get you set up locally."}
+              {isAdmin ? "Welcome back, Lalit! Initializing admin environment." : isGoogleAccount ? "Welcome! We're fetching your data from Google." : "Let's get you set up locally."}
             </p>
           </div>
 
           <form onSubmit={handleSetup} className="space-y-6">
+            <div className="space-y-4 bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
+               <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest text-center">Contact Information</h3>
+               <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                  <input required name="email" type="email" placeholder="example@gmail.com" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-gray-900" />
+               </div>
+               <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
+                  <input required name="phoneNumber" type="tel" placeholder="+91 98765 43210" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-gray-900" />
+               </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
@@ -292,13 +393,15 @@ export default function App() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Height (cm)</label>
-              <input required name="height" type="number" placeholder="175" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
-              <input required name="weight" type="number" placeholder="70" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Height (cm)</label>
+                <input required name="height" type="number" placeholder="175" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
+                <input required name="weight" type="number" placeholder="70" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
+              </div>
             </div>
 
             <button type="submit" className="w-full py-4 bg-orange-600 text-white font-bold rounded-2xl hover:bg-orange-700 transition-colors shadow-lg">
@@ -315,7 +418,114 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 ios-scroll">
-      <header className="bg-white px-6 pt-12 pb-6 border-b border-gray-100 flex items-center justify-between sticky top-0 z-10">
+      {/* Admin Bar */}
+      {isAdmin && (
+        <div className="sticky top-0 z-50 animate-in slide-in-from-top duration-500">
+          <div className="bg-slate-900 text-white px-6 py-3 flex items-center justify-between shadow-2xl">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-orange-500" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Admin: Lalit</span>
+              </div>
+              <div className="h-4 w-px bg-slate-700" />
+              <div className="flex items-center gap-2">
+                <Database className="w-3 h-3 text-blue-400" />
+                <span className="text-[9px] font-bold text-slate-400">Live Customer Inspector</span>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowAdminDetails(!showAdminDetails)}
+              className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full text-[9px] font-black hover:bg-slate-700 transition-colors"
+            >
+              {showAdminDetails ? <X className="w-3 h-3" /> : <Settings className="w-3 h-3" />}
+              {showAdminDetails ? "Close Log" : "Inspect Data"}
+            </button>
+          </div>
+
+          {/* Expanded Admin Data Inspector */}
+          {showAdminDetails && (
+            <div className="bg-slate-800 text-white border-t border-slate-700 shadow-2xl animate-in slide-in-from-top-4 duration-300">
+              <div className="max-h-[60vh] overflow-y-auto p-6 space-y-8">
+                {/* Customer Identity Section */}
+                <section>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <UserIcon className="w-3 h-3" /> Customer Identity
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Mail className="w-3 h-3 text-blue-400" />
+                        <span className="text-[9px] text-slate-500 font-bold uppercase">Email</span>
+                      </div>
+                      <p className="text-xs font-black text-blue-100">{profile.email || "Not Provided"}</p>
+                    </div>
+                    <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Phone className="w-3 h-3 text-green-400" />
+                        <span className="text-[9px] text-slate-500 font-bold uppercase">Mobile</span>
+                      </div>
+                      <p className="text-xs font-black text-green-100">{profile.phoneNumber || "Not Provided"}</p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Search / Query History Section */}
+                <section>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <History className="w-3 h-3" /> Interaction & Search History
+                    </h3>
+                    <span className="bg-slate-900 px-2 py-0.5 rounded text-[8px] font-bold text-slate-500">
+                      Total Queries: {profile.searchHistory.length}
+                    </span>
+                  </div>
+                  <div className="bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden">
+                    {profile.searchHistory.length > 0 ? (
+                      <div className="divide-y divide-slate-800 max-h-48 overflow-y-auto">
+                        {profile.searchHistory.map((query, i) => (
+                          <div key={i} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-800/50 transition-colors">
+                            <Search className="w-3 h-3 text-slate-500 mt-1" />
+                            <p className="text-[11px] font-medium text-slate-300 leading-relaxed">{query}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center">
+                        <p className="text-[10px] font-bold text-slate-600 uppercase italic">No active search history recorded</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {/* Account Context Section */}
+                <section>
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Database className="w-3 h-3" /> Account Context
+                  </h3>
+                  <div className="grid grid-cols-4 gap-2">
+                    {Object.entries({
+                      Age: profile.age,
+                      Weight: profile.weight,
+                      Height: profile.height,
+                      Goal: profile.goal
+                    }).map(([k, v]) => (
+                      <div key={k} className="bg-slate-900 p-3 rounded-xl border border-slate-700 text-center">
+                        <p className="text-[8px] text-slate-500 font-bold uppercase mb-1">{k}</p>
+                        <p className="text-[10px] font-black uppercase text-slate-200">{v}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+              <div className="bg-slate-900 p-3 text-center border-t border-slate-700">
+                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em]">Confidential - Lalit Deshmukh Admin Access Only</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <header className={`bg-white px-6 pt-12 pb-6 border-b border-gray-100 flex items-center justify-between sticky ${isAdmin ? 'top-[44px]' : 'top-0'} z-10 transition-all`}>
         <div className="flex items-center gap-3">
           <div className="bg-orange-600 p-2 rounded-xl">
             <Flame className="w-5 h-5 text-white" />
@@ -325,7 +535,7 @@ export default function App() {
             <div className="flex items-center gap-1">
               <div className={`w-1.5 h-1.5 rounded-full ${isGoogleAccount ? 'bg-blue-500' : 'bg-green-500'}`} />
               <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest">
-                {isGoogleAccount ? "Google Sync ON" : "Local Only"}
+                {isAdmin ? "Superuser Lalit" : isGoogleAccount ? "Google Sync ON" : "Local Only"}
               </span>
             </div>
           </div>
@@ -378,7 +588,7 @@ export default function App() {
 
         <div className="grid grid-cols-2 gap-4">
           <button 
-            onClick={() => { setShowIntakeModal(true); setIntakeCalories(''); setIntakeDesc(''); }}
+            onClick={() => { setShowIntakeModal(true); setIntakeCalories(''); setIntakeDesc(''); setConfirmedName(''); }}
             className="bg-white border-2 border-gray-50 p-6 rounded-[2rem] flex flex-col items-center gap-2 hover:border-blue-100 transition-all shadow-sm group"
           >
             <div className="bg-blue-50 p-3 rounded-2xl group-hover:scale-110 transition-transform">
@@ -475,15 +685,37 @@ export default function App() {
           <div className="flex-1 space-y-8 overflow-y-auto pb-20">
             <div className="bg-gray-50 p-6 rounded-[2rem] flex items-center gap-4">
               <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-                <UserIcon className="w-8 h-8 text-orange-600" />
+                {isAdmin ? <ShieldAlert className="w-8 h-8 text-slate-800" /> : <UserIcon className="w-8 h-8 text-orange-600" />}
               </div>
               <div>
-                <p className="font-black text-xl text-gray-900">{isGoogleAccount ? "Google User" : "Guest User"}</p>
-                <p className="text-sm text-gray-500">{isGoogleAccount ? "Syncing to Cloud Memory" : "Stored on Device"}</p>
+                <p className="font-black text-xl text-gray-900">{isAdmin ? "lalit (Admin)" : isGoogleAccount ? "Google User" : "Guest User"}</p>
+                <p className="text-sm text-gray-500">{isAdmin ? "Superuser Privileges" : isGoogleAccount ? "Syncing to Cloud Memory" : "Stored on Device"}</p>
               </div>
             </div>
 
             <div className="space-y-4">
+              {/* Requested Sign In / Get Started Option */}
+              {!isGoogleAccount && !isAdmin && (
+                <button 
+                  onClick={() => handleLogin('google')}
+                  className="w-full bg-gradient-to-br from-gray-900 to-slate-800 p-6 rounded-[2rem] shadow-xl text-left relative overflow-hidden group"
+                >
+                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                      <Cloud className="w-20 h-20 text-white" />
+                   </div>
+                   <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Upgrade to Cloud</span>
+                      </div>
+                      <h3 className="text-white text-xl font-black mb-1">Sign In: Get Started</h3>
+                      <p className="text-slate-400 text-xs font-bold leading-relaxed">
+                        Power with google email to sync your health memories across all devices.
+                      </p>
+                   </div>
+                </button>
+              )}
+
               <div className="p-6 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Stats & Preferences</p>
                 <div className="grid grid-cols-2 gap-4">
@@ -501,22 +733,36 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <Cloud className="w-5 h-5 text-blue-500" />
-                  <span className="font-bold">Sync to Google</span>
+              {isAdmin && (
+                <div className="p-6 bg-slate-900 text-white rounded-[2rem] shadow-xl">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Settings className="w-4 h-4 text-orange-500" />
+                    <span className="text-xs font-black uppercase tracking-widest">Admin Dashboard</span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-bold">Total Entries</span>
+                      <span className="font-black">{entries.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-bold">Account Level</span>
+                      <span className="text-orange-500 font-black uppercase">Root</span>
+                    </div>
+                  </div>
                 </div>
-                <div className={`w-10 h-6 rounded-full p-1 transition-colors ${isGoogleAccount ? 'bg-green-500' : 'bg-gray-200'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${isGoogleAccount ? 'translate-x-4' : 'translate-x-0'}`} />
+              )}
+
+              {isGoogleAccount && !isAdmin && (
+                <div className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <Cloud className="w-5 h-5 text-blue-500" />
+                    <span className="font-bold">Google Cloud Sync</span>
+                  </div>
+                  <div className="px-3 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase">
+                    Connected
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <ShieldCheck className="w-5 h-5 text-purple-500" />
-                  <span className="font-bold">Privacy Controls</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </div>
+              )}
             </div>
           </div>
 
@@ -524,7 +770,7 @@ export default function App() {
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 py-5 text-red-600 font-black uppercase text-sm tracking-widest"
           >
-            <LogOut className="w-4 h-4" /> Disconnect & Delete Data
+            <LogOut className="w-4 h-4" /> Disconnect & Logout
           </button>
         </div>
       )}
@@ -552,28 +798,41 @@ export default function App() {
 
             <form onSubmit={(e) => {
               e.preventDefault();
-              addEntry('intake', parseInt(intakeCalories), intakeDesc || 'Meal');
+              addEntry('intake', parseInt(intakeCalories), confirmedName || intakeDesc || 'Meal');
             }} className="space-y-6">
               <div>
-                <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Food Name</label>
+                <div className="flex items-center justify-between mb-2">
+                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">What did you eat?</label>
+                   <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full">
+                      {profile.dietaryPreference === 'vegetarian' ? <Leaf className="w-2.5 h-2.5 text-green-600" /> : <Beef className="w-2.5 h-2.5 text-red-600" />}
+                      <span className="text-[9px] font-black text-gray-500 uppercase">{profile.dietaryPreference}</span>
+                   </div>
+                </div>
                 <div className="relative">
                   <input 
                     value={intakeDesc}
                     onChange={(e) => setIntakeDesc(e.target.value)}
                     type="text" 
-                    placeholder="e.g. Greek Salad" 
+                    placeholder="e.g. Burger, Salad, Pasta" 
                     className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-orange-500 text-gray-900 font-bold" 
                   />
                   {intakeDesc.length > 2 && (
                     <button 
                       type="button"
                       onClick={handleEstimateCalories}
-                      className="absolute right-2 top-2 bottom-2 bg-gray-900 text-white px-4 rounded-xl font-bold text-xs"
+                      className="absolute right-2 top-2 bottom-2 bg-gray-900 text-white px-4 rounded-xl font-bold text-xs flex items-center gap-1 hover:bg-black transition-colors"
                     >
-                      {isEstimatingText ? "..." : "AI Guess"}
+                      {isEstimatingText ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                      {isEstimatingText ? "Thinking..." : "AI Estimate"}
                     </button>
                   )}
                 </div>
+                {confirmedName && confirmedName !== intakeDesc && !isEstimatingText && (
+                  <div className="mt-2 flex items-center gap-2 text-green-600 animate-in fade-in slide-in-from-top-1">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span className="text-xs font-bold italic">AI identified as: {confirmedName}</span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -593,8 +852,12 @@ export default function App() {
               
               <button 
                 type="submit" 
-                disabled={!intakeCalories}
-                className="w-full py-5 bg-orange-600 text-white font-black rounded-[2rem] text-lg shadow-xl"
+                disabled={!intakeCalories || parseInt(intakeCalories) <= 0}
+                className={`w-full py-5 text-white font-black rounded-[2rem] text-lg shadow-xl transition-all ${
+                  (!intakeCalories || parseInt(intakeCalories) <= 0) 
+                  ? 'bg-gray-300 cursor-not-allowed' 
+                  : 'bg-orange-600 hover:bg-orange-700 active:scale-[0.98]'
+                }`}
               >
                 Add to Diary
               </button>
@@ -625,7 +888,7 @@ export default function App() {
                 <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">What did you do?</label>
                 <input name="desc" type="text" placeholder="Brisk walk" className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-500 text-gray-900 font-bold" />
               </div>
-              <button type="submit" className="w-full py-5 bg-green-600 text-white font-black rounded-[2rem] text-lg shadow-xl">Confirm Log</button>
+              <button type="submit" className="w-full py-5 bg-green-600 text-white font-black rounded-[2rem] text-lg shadow-xl hover:bg-green-700">Confirm Log</button>
             </form>
           </div>
         </div>
@@ -634,7 +897,7 @@ export default function App() {
       {/* Coach Drawer */}
       {showCoach && (
         <div className="fixed inset-0 z-50 flex flex-col bg-white overflow-hidden animate-in slide-in-from-right duration-300">
-          <header className="px-6 pt-12 pb-6 border-b border-gray-100 flex items-center justify-between bg-white">
+          <header className={`px-6 pt-12 pb-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0`}>
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center relative shadow-lg">
                 <Sparkles className="w-6 h-6 text-white" />
@@ -661,8 +924,8 @@ export default function App() {
                 )}
                 <div className={`max-w-[80%] px-5 py-4 rounded-[1.5rem] text-sm font-bold leading-relaxed ${
                   m.role === 'user' 
-                  ? 'bg-orange-600 text-white rounded-tr-none' 
-                  : 'bg-gray-100 text-gray-800 rounded-bl-none'
+                  ? 'bg-orange-600 text-white rounded-tr-none shadow-sm' 
+                  : 'bg-gray-100 text-gray-800 rounded-bl-none border border-gray-200 shadow-sm'
                 }`}>
                   {m.text}
                 </div>
@@ -680,8 +943,8 @@ export default function App() {
                 await handleSendMessage(text);
               }
             }} className="flex gap-3">
-              <input name="msg" autoComplete="off" placeholder="Ask about your Google Health memories..." className="flex-1 bg-gray-50 border-none outline-none px-6 py-4 rounded-2xl focus:ring-2 focus:ring-orange-500 font-bold text-gray-900" />
-              <button type="submit" className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg">
+              <input name="msg" autoComplete="off" placeholder="Ask about your memories..." className="flex-1 bg-gray-50 border-none outline-none px-6 py-4 rounded-2xl focus:ring-2 focus:ring-orange-500 font-bold text-gray-900" />
+              <button type="submit" className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg hover:bg-orange-700 transition-colors">
                 <ArrowRight className="w-6 h-6" />
               </button>
             </form>

@@ -10,6 +10,9 @@ export interface UserProfile {
   dietaryPreference: DietaryPreference;
   dailyTarget: number;
   setupComplete: boolean;
+  email?: string;
+  phoneNumber?: string;
+  searchHistory: string[];
 }
 
 export interface ActivityEntry {

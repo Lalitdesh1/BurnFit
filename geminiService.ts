@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { UserProfile, DailyStats } from "./types";
+import { UserProfile, DailyStats, DietaryPreference } from "./types";
 
 // Always use the recommended naming and parameter object for initialization.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -61,14 +61,14 @@ export const getFixMyDaySuggestion = async (
   return response.text || "Take a 5-minute breather and a walk around the block!";
 };
 
-export const analyzeFoodImage = async (base64Image: string, mimeType: string) => {
+export const analyzeFoodImage = async (base64Image: string, mimeType: string, preference: DietaryPreference) => {
   // Multimodal request: sending image and text parts.
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: {
       parts: [
         { inlineData: { data: base64Image, mimeType: mimeType } },
-        { text: "Identify this food and estimate calories. Return JSON with 'foodName' and 'estimatedCalories'." }
+        { text: `Identify this food and estimate calories. The user follows a ${preference} diet, so assume ingredients align with this if ambiguous. Return JSON with 'foodName' and 'estimatedCalories'.` }
       ],
     },
     config: {
@@ -92,19 +92,20 @@ export const analyzeFoodImage = async (base64Image: string, mimeType: string) =>
   }
 };
 
-export const estimateCaloriesFromText = async (foodDescription: string) => {
+export const estimateCaloriesFromText = async (foodDescription: string, preference: DietaryPreference) => {
   // Text-based JSON response request with responseSchema.
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: [{ role: 'user', parts: [{ text: `Estimate calories for: "${foodDescription}". Return JSON with 'estimatedCalories'.` }] }],
+    contents: [{ role: 'user', parts: [{ text: `Estimate calories for: "${foodDescription}". The user is ${preference}. If the meal name is vague (like 'Burger'), assume it is the ${preference} version. Return JSON with 'estimatedCalories' and 'confirmedFoodName' (a more descriptive name of what you estimated).` }] }],
     config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
           estimatedCalories: { type: Type.NUMBER },
+          confirmedFoodName: { type: Type.STRING },
         },
-        required: ["estimatedCalories"],
+        required: ["estimatedCalories", "confirmedFoodName"],
       },
     },
   });
@@ -113,6 +114,6 @@ export const estimateCaloriesFromText = async (foodDescription: string) => {
     const text = response.text?.trim() || "{}";
     return JSON.parse(text);
   } catch (e) {
-    return { estimatedCalories: 0 };
+    return { estimatedCalories: 0, confirmedFoodName: foodDescription };
   }
 };
