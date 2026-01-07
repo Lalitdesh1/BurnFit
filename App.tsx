@@ -75,22 +75,22 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Sync initialization
     const authStatus = localStorage.getItem(STORAGE_KEY_AUTH);
     const adminStatus = localStorage.getItem(STORAGE_KEY_ADMIN);
-    
-    if (authStatus) {
-      setIsAuthSession(true);
-      setIsGoogleAccount(authStatus === 'google');
-      setIsAdmin(adminStatus === 'true');
-    } else {
-      setIsAuthSession(false);
-    }
-
     const savedProfile = localStorage.getItem(STORAGE_KEY_PROFILE);
     const savedEntries = localStorage.getItem(STORAGE_KEY_ENTRIES);
     
     if (savedProfile) setProfile(JSON.parse(savedProfile));
     if (savedEntries) setEntries(JSON.parse(savedEntries));
+
+    if (authStatus) {
+      setIsGoogleAccount(authStatus === 'google');
+      setIsAdmin(adminStatus === 'true');
+      setIsAuthSession(true);
+    } else {
+      setIsAuthSession(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -185,7 +185,6 @@ export default function App() {
   const handleSendMessage = async (text: string) => {
     if (!profile) return;
     
-    // Add to search history (Admin visibility)
     const updatedProfile = { 
       ...profile, 
       searchHistory: [text, ...profile.searchHistory].slice(0, 50) 
@@ -254,6 +253,15 @@ export default function App() {
     }
   };
 
+  // Prevent blank screen by handling initialization phase
+  if (isAuthSession === null) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-orange-600 animate-spin" />
+      </div>
+    );
+  }
+
   if (isAuthSession === false) {
     return (
       <div className="min-h-screen bg-white p-8 flex flex-col items-center justify-center text-center">
@@ -266,6 +274,7 @@ export default function App() {
             </div>
             <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
               <input 
+                aria-label="Admin ID"
                 value={adminUsername}
                 onChange={(e) => setAdminUsername(e.target.value)}
                 type="text" 
@@ -273,6 +282,7 @@ export default function App() {
                 className="w-full px-6 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-slate-800 transition-all font-bold"
               />
               <input 
+                aria-label="Admin Password"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 type="password" 
@@ -345,7 +355,7 @@ export default function App() {
         <div className="w-full max-w-md py-12">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Your Profile</h1>
-            <p className="text-gray-500">
+            <p className="text-gray-500 text-sm">
               {isAdmin ? "Welcome back, Lalit! Initializing admin environment." : isGoogleAccount ? "Welcome! We're fetching your data from Google." : "Let's get you set up locally."}
             </p>
           </div>
@@ -354,23 +364,23 @@ export default function App() {
             <div className="space-y-4 bg-gray-50 p-6 rounded-[2rem] border border-gray-100">
                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest text-center">Contact Information</h3>
                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
-                  <input required name="email" type="email" placeholder="example@gmail.com" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-gray-900" />
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                  <input required id="email" name="email" type="email" placeholder="example@gmail.com" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-gray-900" />
                </div>
                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
-                  <input required name="phoneNumber" type="tel" placeholder="+91 98765 43210" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-gray-900" />
+                  <label htmlFor="phoneNumber" className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
+                  <input required id="phoneNumber" name="phoneNumber" type="tel" placeholder="+91 98765 43210" className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-gray-900" />
                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
-                <input required name="age" type="number" placeholder="25" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
+                <label htmlFor="age" className="block text-sm font-semibold text-gray-700 mb-2">Age</label>
+                <input required id="age" name="age" type="number" placeholder="25" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Goal</label>
-                <select name="goal" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900">
+                <label htmlFor="goal" className="block text-sm font-semibold text-gray-700 mb-2">Goal</label>
+                <select id="goal" name="goal" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900">
                   <option value="maintain">Maintain</option>
                   <option value="lose">Lose Weight</option>
                 </select>
@@ -378,7 +388,7 @@ export default function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3 text-center uppercase tracking-widest text-[10px]">Dietary Preference</label>
+              <p className="block text-sm font-semibold text-gray-700 mb-3 text-center uppercase tracking-widest text-[10px]">Dietary Preference</p>
               <div className="grid grid-cols-2 gap-3">
                 <label className="relative flex flex-col items-center p-4 border-2 border-gray-100 rounded-2xl cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50 group transition-all">
                   <input type="radio" name="dietaryPreference" value="vegetarian" required className="absolute opacity-0" />
@@ -395,12 +405,12 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Height (cm)</label>
-                <input required name="height" type="number" placeholder="175" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
+                <label htmlFor="height" className="block text-sm font-semibold text-gray-700 mb-2">Height (cm)</label>
+                <input required id="height" name="height" type="number" placeholder="175" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
-                <input required name="weight" type="number" placeholder="70" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
+                <label htmlFor="weight" className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
+                <input required id="weight" name="weight" type="number" placeholder="70" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none text-gray-900" />
               </div>
             </div>
 
@@ -430,7 +440,7 @@ export default function App() {
               <div className="h-4 w-px bg-slate-700" />
               <div className="flex items-center gap-2">
                 <Database className="w-3 h-3 text-blue-400" />
-                <span className="text-[9px] font-bold text-slate-400">Live Customer Inspector</span>
+                <span className="text-[9px] font-bold text-slate-400">Live Inspector</span>
               </div>
             </div>
             <button 
@@ -438,18 +448,16 @@ export default function App() {
               className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full text-[9px] font-black hover:bg-slate-700 transition-colors"
             >
               {showAdminDetails ? <X className="w-3 h-3" /> : <Settings className="w-3 h-3" />}
-              {showAdminDetails ? "Close Log" : "Inspect Data"}
+              {showAdminDetails ? "Close Log" : "Inspect"}
             </button>
           </div>
 
-          {/* Expanded Admin Data Inspector */}
           {showAdminDetails && (
             <div className="bg-slate-800 text-white border-t border-slate-700 shadow-2xl animate-in slide-in-from-top-4 duration-300">
               <div className="max-h-[60vh] overflow-y-auto p-6 space-y-8">
-                {/* Customer Identity Section */}
                 <section>
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <UserIcon className="w-3 h-3" /> Customer Identity
+                    <UserIcon className="w-3 h-3" /> Identity
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700">
@@ -457,32 +465,31 @@ export default function App() {
                         <Mail className="w-3 h-3 text-blue-400" />
                         <span className="text-[9px] text-slate-500 font-bold uppercase">Email</span>
                       </div>
-                      <p className="text-xs font-black text-blue-100">{profile.email || "Not Provided"}</p>
+                      <p className="text-xs font-black text-blue-100 break-all">{profile?.email || "N/A"}</p>
                     </div>
                     <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700">
                       <div className="flex items-center gap-2 mb-1">
                         <Phone className="w-3 h-3 text-green-400" />
                         <span className="text-[9px] text-slate-500 font-bold uppercase">Mobile</span>
                       </div>
-                      <p className="text-xs font-black text-green-100">{profile.phoneNumber || "Not Provided"}</p>
+                      <p className="text-xs font-black text-green-100">{profile?.phoneNumber || "N/A"}</p>
                     </div>
                   </div>
                 </section>
 
-                {/* Search / Query History Section */}
                 <section>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                      <History className="w-3 h-3" /> Interaction & Search History
+                      <History className="w-3 h-3" /> Search History
                     </h3>
                     <span className="bg-slate-900 px-2 py-0.5 rounded text-[8px] font-bold text-slate-500">
-                      Total Queries: {profile.searchHistory.length}
+                      {profile?.searchHistory.length} Recorded
                     </span>
                   </div>
                   <div className="bg-slate-900 rounded-2xl border border-slate-700 overflow-hidden">
-                    {profile.searchHistory.length > 0 ? (
+                    {(profile?.searchHistory.length || 0) > 0 ? (
                       <div className="divide-y divide-slate-800 max-h-48 overflow-y-auto">
-                        {profile.searchHistory.map((query, i) => (
+                        {profile?.searchHistory.map((query, i) => (
                           <div key={i} className="px-4 py-3 flex items-start gap-3 hover:bg-slate-800/50 transition-colors">
                             <Search className="w-3 h-3 text-slate-500 mt-1" />
                             <p className="text-[11px] font-medium text-slate-300 leading-relaxed">{query}</p>
@@ -490,35 +497,13 @@ export default function App() {
                         ))}
                       </div>
                     ) : (
-                      <div className="p-8 text-center">
-                        <p className="text-[10px] font-bold text-slate-600 uppercase italic">No active search history recorded</p>
-                      </div>
+                      <div className="p-8 text-center"><p className="text-[10px] font-bold text-slate-600 uppercase italic">No history</p></div>
                     )}
-                  </div>
-                </section>
-
-                {/* Account Context Section */}
-                <section>
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <Database className="w-3 h-3" /> Account Context
-                  </h3>
-                  <div className="grid grid-cols-4 gap-2">
-                    {Object.entries({
-                      Age: profile.age,
-                      Weight: profile.weight,
-                      Height: profile.height,
-                      Goal: profile.goal
-                    }).map(([k, v]) => (
-                      <div key={k} className="bg-slate-900 p-3 rounded-xl border border-slate-700 text-center">
-                        <p className="text-[8px] text-slate-500 font-bold uppercase mb-1">{k}</p>
-                        <p className="text-[10px] font-black uppercase text-slate-200">{v}</p>
-                      </div>
-                    ))}
                   </div>
                 </section>
               </div>
               <div className="bg-slate-900 p-3 text-center border-t border-slate-700">
-                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em]">Confidential - Lalit Deshmukh Admin Access Only</p>
+                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.3em]">Root Access Enabled</p>
               </div>
             </div>
           )}
@@ -535,7 +520,7 @@ export default function App() {
             <div className="flex items-center gap-1">
               <div className={`w-1.5 h-1.5 rounded-full ${isGoogleAccount ? 'bg-blue-500' : 'bg-green-500'}`} />
               <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest">
-                {isAdmin ? "Superuser Lalit" : isGoogleAccount ? "Google Sync ON" : "Local Only"}
+                {isAdmin ? "Superuser Lalit" : isGoogleAccount ? "Cloud Synced" : "Local Sync"}
               </span>
             </div>
           </div>
@@ -618,13 +603,13 @@ export default function App() {
               setLoadingSuggestion(false);
             }
           }}
-          className="w-full bg-gray-900 p-6 rounded-[2rem] flex items-center justify-between shadow-xl relative overflow-hidden"
+          className="w-full bg-gray-900 p-6 rounded-[2rem] flex items-center justify-between shadow-xl relative overflow-hidden active:scale-[0.98] transition-all"
         >
           <div className="z-10 text-left">
             <h3 className="text-white font-bold text-lg">Fix My Day</h3>
-            <p className="text-gray-400 text-sm">AI analysis of your Google Health data</p>
+            <p className="text-gray-400 text-sm">AI analysis of your memories</p>
           </div>
-          <div className="z-10 bg-orange-600 p-3 rounded-2xl shadow-lg shadow-orange-900/40">
+          <div className="z-10 bg-orange-600 p-3 rounded-2xl shadow-lg">
             {loadingSuggestion ? <Loader2 className="animate-spin w-5 h-5 text-white" /> : <Sparkles className="w-5 h-5 text-white" />}
           </div>
         </button>
@@ -634,13 +619,14 @@ export default function App() {
           <div className="space-y-4">
             {MICRO_WORKOUTS.map((w) => (
               <div key={w.id} className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-xl">{w.icon}</div>
+                <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-xl" role="img" aria-label={w.title}>{w.icon}</div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-800">{w.title}</p>
                 </div>
                 <button 
                   onClick={() => addEntry('exercise', w.id * 20 + 30, w.title)}
                   className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors"
+                  aria-label={`Add ${w.title}`}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -676,42 +662,47 @@ export default function App() {
 
       {/* Account Screen Overlay */}
       {activeTab === 'profile' && (
-        <div className="fixed inset-0 z-50 bg-white p-8 flex flex-col">
+        <div className="fixed inset-0 z-50 bg-white p-8 flex flex-col overflow-y-auto pb-32">
           <div className="flex justify-between items-center mb-10">
             <h2 className="text-3xl font-black text-gray-900">Profile</h2>
-            <button onClick={() => setActiveTab('dashboard')} className="p-2 bg-gray-50 rounded-full"><X className="w-6 h-6" /></button>
+            <button onClick={() => setActiveTab('dashboard')} className="p-2 bg-gray-50 rounded-full" aria-label="Close Profile"><X className="w-6 h-6" /></button>
           </div>
 
-          <div className="flex-1 space-y-8 overflow-y-auto pb-20">
-            <div className="bg-gray-50 p-6 rounded-[2rem] flex items-center gap-4">
+          <div className="space-y-8">
+            <div className="bg-gray-50 p-6 rounded-[2rem] flex items-center gap-4 border border-gray-100 shadow-sm">
               <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
                 {isAdmin ? <ShieldAlert className="w-8 h-8 text-slate-800" /> : <UserIcon className="w-8 h-8 text-orange-600" />}
               </div>
               <div>
-                <p className="font-black text-xl text-gray-900">{isAdmin ? "lalit (Admin)" : isGoogleAccount ? "Google User" : "Guest User"}</p>
-                <p className="text-sm text-gray-500">{isAdmin ? "Superuser Privileges" : isGoogleAccount ? "Syncing to Cloud Memory" : "Stored on Device"}</p>
+                <p className="font-black text-xl text-gray-900">{isAdmin ? "lalit (Admin)" : isGoogleAccount ? "Cloud User" : "Guest User"}</p>
+                <p className="text-sm text-gray-500 break-all">{profile.email || "Local Sync Only"}</p>
               </div>
             </div>
 
             <div className="space-y-4">
-              {/* Requested Sign In / Get Started Option */}
+              {/* Prominent Get Started / Power with Google Section */}
               {!isGoogleAccount && !isAdmin && (
                 <button 
                   onClick={() => handleLogin('google')}
-                  className="w-full bg-gradient-to-br from-gray-900 to-slate-800 p-6 rounded-[2rem] shadow-xl text-left relative overflow-hidden group"
+                  className="w-full bg-gradient-to-br from-gray-900 to-slate-800 p-8 rounded-[2rem] shadow-2xl text-left relative overflow-hidden group active:scale-[0.97] transition-all"
                 >
-                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                      <Cloud className="w-20 h-20 text-white" />
+                   <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:scale-110 transition-transform">
+                      <Cloud className="w-24 h-24 text-white" />
                    </div>
                    <div className="relative z-10">
-                      <div className="flex items-center gap-2 mb-2">
-                        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="bg-white p-1 rounded-md">
+                          <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" />
+                        </div>
                         <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Upgrade to Cloud</span>
                       </div>
-                      <h3 className="text-white text-xl font-black mb-1">Sign In: Get Started</h3>
-                      <p className="text-slate-400 text-xs font-bold leading-relaxed">
-                        Power with google email to sync your health memories across all devices.
+                      <h3 className="text-white text-2xl font-black mb-2">Sign In: Get Started</h3>
+                      <p className="text-slate-400 text-xs font-bold leading-relaxed pr-8">
+                        Power your experience with Google Email to sync your health memories securely across all your devices.
                       </p>
+                      <div className="mt-6 flex items-center gap-2 text-white font-bold text-sm">
+                         Connect Now <ChevronRight className="w-4 h-4 text-orange-500" />
+                      </div>
                    </div>
                 </button>
               )}
@@ -721,45 +712,51 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-2xl">
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Weight</span>
-                    <p className="font-bold">{profile.weight} kg</p>
+                    <p className="font-bold text-gray-900">{profile.weight} kg</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-2xl">
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Diet</span>
-                    <p className="font-bold flex items-center gap-1">
+                    <p className="font-bold text-gray-900 flex items-center gap-1">
                       {profile.dietaryPreference === 'vegetarian' ? <Leaf className="w-3 h-3 text-green-600" /> : <Beef className="w-3 h-3 text-red-600" />}
-                      {profile.dietaryPreference}
+                      <span className="capitalize">{profile.dietaryPreference}</span>
                     </p>
                   </div>
                 </div>
               </div>
 
               {isAdmin && (
-                <div className="p-6 bg-slate-900 text-white rounded-[2rem] shadow-xl">
+                <div className="p-6 bg-slate-900 text-white rounded-[2rem] shadow-xl border border-slate-700">
                   <div className="flex items-center gap-2 mb-4">
                     <Settings className="w-4 h-4 text-orange-500" />
-                    <span className="text-xs font-black uppercase tracking-widest">Admin Dashboard</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">Admin Dashboard</span>
                   </div>
                   <div className="space-y-3">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold">Total Entries</span>
-                      <span className="font-black">{entries.length}</span>
+                      <span className="text-slate-400 font-bold">Total History</span>
+                      <span className="font-black text-blue-400">{profile.searchHistory.length} items</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-bold">Account Level</span>
-                      <span className="text-orange-500 font-black uppercase">Root</span>
+                      <span className="text-slate-400 font-bold">Privilege</span>
+                      <span className="text-orange-500 font-black uppercase">Root Control</span>
                     </div>
                   </div>
                 </div>
               )}
 
               {isGoogleAccount && !isAdmin && (
-                <div className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl">
+                <div className="flex items-center justify-between p-5 bg-blue-50/50 border border-blue-100 rounded-[1.5rem] shadow-sm">
                   <div className="flex items-center gap-3">
-                    <Cloud className="w-5 h-5 text-blue-500" />
-                    <span className="font-bold">Google Cloud Sync</span>
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <ShieldCheck className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <span className="font-black text-blue-900 text-sm">Google Cloud Secured</span>
+                      <p className="text-[10px] text-blue-500 font-bold">Your memories are safe.</p>
+                    </div>
                   </div>
-                  <div className="px-3 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase">
-                    Connected
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-black text-green-600 uppercase">Live</span>
                   </div>
                 </div>
               )}
@@ -768,9 +765,9 @@ export default function App() {
 
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-5 text-red-600 font-black uppercase text-sm tracking-widest"
+            className="mt-12 w-full flex items-center justify-center gap-2 py-5 text-red-600 font-black uppercase text-xs tracking-widest border-t border-gray-100 hover:bg-red-50 transition-colors"
           >
-            <LogOut className="w-4 h-4" /> Disconnect & Logout
+            <LogOut className="w-4 h-4" /> Disconnect & Delete Data
           </button>
         </div>
       )}
@@ -781,14 +778,14 @@ export default function App() {
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Add Meal</h2>
-              <button onClick={() => setShowIntakeModal(false)} className="bg-gray-100 p-2 rounded-full"><X className="w-6 h-6 text-gray-500" /></button>
+              <button onClick={() => setShowIntakeModal(false)} className="bg-gray-100 p-2 rounded-full" aria-label="Close Meal Modal"><X className="w-6 h-6 text-gray-500" /></button>
             </div>
             
             <div className="mb-6 flex gap-4">
               <button 
                 onClick={handleCameraClick}
                 disabled={isScanningFood}
-                className="flex-1 py-4 bg-blue-50 text-blue-700 font-bold rounded-2xl flex items-center justify-center gap-2 border border-blue-100"
+                className="flex-1 py-4 bg-blue-50 text-blue-700 font-bold rounded-2xl flex items-center justify-center gap-2 border border-blue-100 hover:bg-blue-100 active:scale-[0.98] transition-all"
               >
                 {isScanningFood ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
                 Scan with Camera
@@ -802,7 +799,7 @@ export default function App() {
             }} className="space-y-6">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">What did you eat?</label>
+                   <label htmlFor="mealDesc" className="block text-xs font-black text-gray-400 uppercase tracking-widest">What did you eat?</label>
                    <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full">
                       {profile.dietaryPreference === 'vegetarian' ? <Leaf className="w-2.5 h-2.5 text-green-600" /> : <Beef className="w-2.5 h-2.5 text-red-600" />}
                       <span className="text-[9px] font-black text-gray-500 uppercase">{profile.dietaryPreference}</span>
@@ -810,6 +807,7 @@ export default function App() {
                 </div>
                 <div className="relative">
                   <input 
+                    id="mealDesc"
                     value={intakeDesc}
                     onChange={(e) => setIntakeDesc(e.target.value)}
                     type="text" 
@@ -823,23 +821,24 @@ export default function App() {
                       className="absolute right-2 top-2 bottom-2 bg-gray-900 text-white px-4 rounded-xl font-bold text-xs flex items-center gap-1 hover:bg-black transition-colors"
                     >
                       {isEstimatingText ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                      {isEstimatingText ? "Thinking..." : "AI Estimate"}
+                      {isEstimatingText ? "..." : "Estimate"}
                     </button>
                   )}
                 </div>
                 {confirmedName && confirmedName !== intakeDesc && !isEstimatingText && (
                   <div className="mt-2 flex items-center gap-2 text-green-600 animate-in fade-in slide-in-from-top-1">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span className="text-xs font-bold italic">AI identified as: {confirmedName}</span>
+                    <span className="text-xs font-bold italic">AI identified: {confirmedName}</span>
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Estimated Calories</label>
+                <label htmlFor="mealKcal" className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Calories</label>
                 <div className="flex items-center gap-3 border-b-4 border-orange-50 focus-within:border-orange-500 transition-colors">
                   <input 
                     required 
+                    id="mealKcal"
                     value={intakeCalories}
                     onChange={(e) => setIntakeCalories(e.target.value)}
                     type="number" 
@@ -859,7 +858,7 @@ export default function App() {
                   : 'bg-orange-600 hover:bg-orange-700 active:scale-[0.98]'
                 }`}
               >
-                Add to Diary
+                Save Log
               </button>
             </form>
           </div>
@@ -872,7 +871,7 @@ export default function App() {
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Log Burn</h2>
-              <button onClick={() => setShowActivityModal(false)} className="bg-gray-100 p-2 rounded-full"><X className="w-6 h-6 text-gray-500" /></button>
+              <button onClick={() => setShowActivityModal(false)} className="bg-gray-100 p-2 rounded-full" aria-label="Close Burn Modal"><X className="w-6 h-6 text-gray-500" /></button>
             </div>
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -881,14 +880,14 @@ export default function App() {
               addEntry('exercise', mins * 7, (formData.get('desc') as string) || 'Activity');
             }} className="space-y-6">
               <div>
-                <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Duration (mins)</label>
-                <input required name="mins" type="number" placeholder="30" className="w-full text-5xl font-black bg-transparent border-b-4 border-green-50 outline-none py-2 text-gray-900 focus:border-green-500 transition-colors" />
+                <label htmlFor="duration" className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">Duration (mins)</label>
+                <input required id="duration" name="mins" type="number" placeholder="30" className="w-full text-5xl font-black bg-transparent border-b-4 border-green-50 outline-none py-2 text-gray-900 focus:border-green-500 transition-colors" />
               </div>
               <div>
-                <label className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">What did you do?</label>
-                <input name="desc" type="text" placeholder="Brisk walk" className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-500 text-gray-900 font-bold" />
+                <label htmlFor="burnDesc" className="block text-xs font-black text-gray-400 mb-2 uppercase tracking-widest">What did you do?</label>
+                <input id="burnDesc" name="desc" type="text" placeholder="Brisk walk" className="w-full px-5 py-4 bg-gray-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-green-500 text-gray-900 font-bold" />
               </div>
-              <button type="submit" className="w-full py-5 bg-green-600 text-white font-black rounded-[2rem] text-lg shadow-xl hover:bg-green-700">Confirm Log</button>
+              <button type="submit" className="w-full py-5 bg-green-600 text-white font-black rounded-[2rem] text-lg shadow-xl hover:bg-green-700 active:scale-[0.98] transition-all">Confirm Burn</button>
             </form>
           </div>
         </div>
@@ -911,20 +910,20 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <button onClick={() => setShowCoach(false)} className="p-3 bg-gray-50 rounded-2xl"><X className="w-6 h-6 text-gray-400" /></button>
+            <button onClick={() => setShowCoach(false)} className="p-3 bg-gray-50 rounded-2xl" aria-label="Close Coach"><X className="w-6 h-6 text-gray-400" /></button>
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {coachMessages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start items-end gap-3'}`}>
                 {m.role === 'model' && (
-                   <div className="w-8 h-8 bg-gray-900 rounded-lg flex-shrink-0 flex items-center justify-center">
+                   <div className="w-8 h-8 bg-gray-900 rounded-lg flex-shrink-0 flex items-center justify-center shadow-md">
                      <Flame className="w-4 h-4 text-white" />
                    </div>
                 )}
                 <div className={`max-w-[80%] px-5 py-4 rounded-[1.5rem] text-sm font-bold leading-relaxed ${
                   m.role === 'user' 
-                  ? 'bg-orange-600 text-white rounded-tr-none shadow-sm' 
+                  ? 'bg-orange-600 text-white rounded-tr-none shadow-lg' 
                   : 'bg-gray-100 text-gray-800 rounded-bl-none border border-gray-200 shadow-sm'
                 }`}>
                   {m.text}
@@ -933,7 +932,7 @@ export default function App() {
             ))}
           </div>
 
-          <div className="p-6 bg-white border-t border-gray-100">
+          <div className="p-6 bg-white border-t border-gray-100 pb-10">
             <form onSubmit={async (e) => {
               e.preventDefault();
               const input = e.currentTarget.elements.namedItem('msg') as HTMLInputElement;
@@ -944,7 +943,7 @@ export default function App() {
               }
             }} className="flex gap-3">
               <input name="msg" autoComplete="off" placeholder="Ask about your memories..." className="flex-1 bg-gray-50 border-none outline-none px-6 py-4 rounded-2xl focus:ring-2 focus:ring-orange-500 font-bold text-gray-900" />
-              <button type="submit" className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg hover:bg-orange-700 transition-colors">
+              <button type="submit" className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg hover:bg-orange-700 transition-colors active:scale-95">
                 <ArrowRight className="w-6 h-6" />
               </button>
             </form>
