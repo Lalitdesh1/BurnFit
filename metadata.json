@@ -1,0 +1,7 @@
+{
+  "name": "BurnFit",
+  "description": "A simple mobile app to help users understand calories and stay active with AI-powered motivational coaching.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
